@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="send_depth" default="True" />
+    <arg name="show_images" default="False" />
+
+    <node name="kinect_publisher" type="kinect_publisher" pkg="deep_skeleton_tracking" args="$(arg send_depth) $(arg show_images)" />
+
+    <!-- <node name="color_republisher" type="republish" pkg="image_transport" output="screen" args="raw in:=kinect/color theora out:=kinect/color_compressed"/> -->
+
+    <!-- <group if="$(arg send_depth)">
+    	<node name="depth_republisher" type="republish" pkg="image_transport" output="screen" args="raw in:=kinect/depth theora out:=kinect/depth_compressed"/>
+    	<node name="registered_republisher" type="republish" pkg="image_transport" output="screen" args="raw in:=kinect/registered theora out:=kinect/registered_compressed"/>
+    </group> -->
+
+</launch>

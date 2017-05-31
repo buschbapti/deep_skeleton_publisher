@@ -1,0 +1,118 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+import numpy as np
+import cv2
+import sys
+from pylibfreenect2 import Freenect2, SyncMultiFrameListener
+from pylibfreenect2 import FrameType, Registration, Frame
+from pylibfreenect2 import createConsoleLogger, setGlobalLogger
+from pylibfreenect2 import LoggerLevel
+
+try:
+    from pylibfreenect2 import OpenCLPacketPipeline
+    pipeline = OpenCLPacketPipeline()
+except:
+    try:
+        from pylibfreenect2 import OpenGLPacketPipeline
+        pipeline = OpenGLPacketPipeline()
+    except:
+        from pylibfreenect2 import CpuPacketPipeline
+        pipeline = CpuPacketPipeline()
+print("Packet pipeline:", type(pipeline).__name__)
+
+import rospy
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge, CvBridgeError
+
+
+def main(send_depth=False, show_images=False):
+    # Create and set logger
+    logger = createConsoleLogger(LoggerLevel.Debug)
+    setGlobalLogger(logger)
+
+    fn = Freenect2()
+    num_devices = fn.enumerateDevices()
+    if num_devices == 0:
+        print("No device connected!")
+        sys.exit(1)
+
+    serial = fn.getDeviceSerialNumber(0)
+    device = fn.openDevice(serial, pipeline=pipeline)
+
+    listener = SyncMultiFrameListener(
+        FrameType.Color | FrameType.Ir | FrameType.Depth)
+
+    # Register listeners
+    device.setColorFrameListener(listener)
+    device.setIrAndDepthFrameListener(listener)
+
+    device.start()
+
+    # NOTE: must be called after device.start()
+    registration = Registration(device.getIrCameraParams(),
+                                device.getColorCameraParams())
+
+    undistorted = Frame(512, 424, 4)
+    registered = Frame(512, 424, 4)
+
+    # Optinal parameters for registration
+    # set True if you need
+    need_bigdepth = False
+    need_color_depth_map = False
+
+    bigdepth = Frame(1920, 1082, 4) if need_bigdepth else None
+    color_depth_map = np.zeros((424, 512),  np.int32).ravel() \
+        if need_color_depth_map else None
+
+    # create channels for ROS publishing
+    kin_publishers = {}
+    kin_publishers["registered"] = rospy.Publisher("/kinect/registered", Image, queue_size=10)
+    kin_publishers["depth"] = rospy.Publisher("/kinect/depth", Image, queue_size=10)
+    kin_publishers["color"] = rospy.Publisher("/kinect/color", Image, queue_size=10)
+    rate = rospy.Rate(10)
+    bridge = CvBridge()
+
+    while not rospy.is_shutdown():
+        frames = listener.waitForNewFrame()
+        color = frames["color"]
+        ir = frames["ir"]
+        depth = frames["depth"]
+
+        registration.apply(color, depth, undistorted, registered,
+                           bigdepth=bigdepth,
+                           color_depth_map=color_depth_map)
+
+        # send registered image
+        cv_imgs = {}
+        if send_depth:
+            # send depth image
+            cv_imgs["depth"] = [depth.asarray() / 4500., "passthrough"]
+            # send registered image
+            cv_imgs["registered"] = [registered.asarray(np.uint8), "passthrough"]
+        # send color image
+        cv_img = cv2.resize(color.asarray(), (int(1920 / 3), int(1080 / 3)))
+        cv_imgs["color"] = [cv_img, "bgra8"]
+
+        # publish all images
+        for key, value in cv_imgs.iteritems():
+            kin_publishers[key].publish(bridge.cv2_to_imgmsg(value[0], value[1]))
+            if show_images:
+                cv2.imshow(key, value[0])
+
+        listener.release(frames)
+
+        key = cv2.waitKey(delay=1)
+        if key == ord('q'):
+            break
+
+    device.stop()
+    device.close()
+
+    sys.exit(0)
+
+if __name__ == '__main__':
+    rospy.init_node("image_publisher")
+    send_depth = (sys.argv[1] == "True") if len(sys.argv) > 1 else False
+    show_images = (sys.argv[2] == "True") if len(sys.argv) > 2 else False
+    main(send_depth, show_images)

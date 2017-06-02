@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(deep_skeleton_tracking)
 
 ## Add support for C++11, supported in ROS Kinetic and newer
-# add_definitions(-std=c++11)
+add_definitions(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -12,11 +12,17 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   sensor_msgs
+  cv_bridge
 )
 
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+# add cmake modules for finding openpose
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 
+## System dependencies are found with CMake's conventions
+find_package(openpose REQUIRED COMPONENTS
+  cuda REQUIRED
+  caffe REQUIRED
+)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -106,19 +112,21 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES deep_skeleton_tracking
-#  CATKIN_DEPENDS image_transport roscpp rospy
-#  DEPENDS system_lib
+	CATKIN_DEPENDS image_transport roscpp rospy
+	DEPENDS openpose
 )
 
 ###########
 ## Build ##
-###########
-
+########### 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 # include_directories(include)
 include_directories(
   ${catkin_INCLUDE_DIRS}
+  ${openpose_INCLUDE_DIR}
+  /usr/local/cuda/include
+  ${caffe_INCLUDE_DIR}
 )
 
 ## Declare a C++ library
@@ -134,7 +142,15 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/deep_skeleton_tracking_node.cpp)
+FILE(GLOB SRCFILES_SKEL ${PROJECT_SOURCE_DIR}/src/deep_skeleton_tracking/*.cpp ${PROJECT_SOURCE_DIR}/src/deep_skeleton_tracking/*.hpp)
+add_executable(skeleton_tracking ${SRCFILES_SKEL})
+
+target_link_libraries(skeleton_tracking
+  ${catkin_LIBRARIES}
+  ${openpose_LIBRARY}
+  ${cuda_LIBRARY}
+  ${caffe_LIBRARY}
+)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

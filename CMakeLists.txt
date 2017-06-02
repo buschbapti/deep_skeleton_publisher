@@ -25,6 +25,8 @@ find_package(openpose REQUIRED COMPONENTS
   caffe REQUIRED
 )
 
+find_package(GFlags REQUIRED)
+
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -114,7 +116,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES deep_skeleton_tracking
 	CATKIN_DEPENDS image_transport roscpp rospy
-	DEPENDS openpose
+	DEPENDS openpose cuda caffe GFLAGS
 )
 
 ###########
@@ -128,6 +130,7 @@ include_directories(
   ${openpose_INCLUDE_DIR}
   /usr/local/cuda/include
   ${caffe_INCLUDE_DIR}
+  ${GFLAGS_INCLUDE_DIR}
 )
 
 ## Declare a C++ library
@@ -151,6 +154,7 @@ target_link_libraries(skeleton_tracking
   ${openpose_LIBRARY}
   ${cuda_LIBRARY}
   ${caffe_LIBRARY}
+  ${GFLAGS_LIBRARY}
 )
 
 ## Rename C++ executable without prefix

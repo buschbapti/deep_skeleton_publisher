@@ -30,6 +30,13 @@ private:
 	bool debug;
 	op::PoseModel gflagToPoseModel(const std::string& poseModeString);
 	std::tuple<cv::Size, cv::Size, cv::Size, op::PoseModel> gflagsToOpParameters();
+
+	op::CvMatToOpInput* cvMatToOpInput;
+	op::CvMatToOpOutput* cvMatToOpOutput;
+	op::PoseExtractorCaffe* poseExtractorCaffe;
+	op::PoseRenderer* poseRenderer;
+	op::OpOutputToCvMat* opOutputToCvMat;
+	op::FrameDisplayer* frameDisplayer;
 public:
 	SkeletonTracking(bool debug);
 	~SkeletonTracking();

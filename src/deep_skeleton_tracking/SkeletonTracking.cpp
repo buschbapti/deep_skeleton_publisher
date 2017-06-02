@@ -7,7 +7,7 @@ DEFINE_int32(logging_level,             3,              "The logging level. Inte
                                                         " Current OpenPose library messages are in the range 0-4: 1 for low priority messages and 4 for important ones.");
 // OpenPose
 DEFINE_string(model_pose,               "COCO",         "Model to be used (e.g. COCO, MPI, MPI_4_layers).");
-DEFINE_string(model_folder,             "models/",      "Folder where the pose models (COCO and MPI) are located.");
+DEFINE_string(model_folder,             "/home/buschbapti/catkin_ws/src/deep_skeleton_tracking/models/",      "Folder where the pose models (COCO and MPI) are located.");
 DEFINE_string(net_resolution,           "656x368",      "Multiples of 16.");
 DEFINE_string(resolution,               "1280x720",     "The image resolution (display). Use \"-1x-1\" to force the program to use the default images resolution.");
 DEFINE_int32(num_gpu_start,             0,              "GPU device start number.");
@@ -25,6 +25,31 @@ SkeletonTracking::SkeletonTracking(bool debug)
 		cv::namedWindow("view");
   		cv::startWindowThread();
 	}
+
+	// ------------------------- INITIALIZATION -------------------------
+    // Step 1 - Set logging level
+        // - 0 will output all the logging messages
+        // - 255 will output nothing
+    op::check(0 <= FLAGS_logging_level && FLAGS_logging_level <= 255, "Wrong logging_level value.", __LINE__, __FUNCTION__, __FILE__);
+    op::ConfigureLog::setPriorityThreshold((op::Priority)FLAGS_logging_level);
+    // Step 2 - Read Google flags (user defined configuration)
+    cv::Size outputSize;
+    cv::Size netInputSize;
+    cv::Size netOutputSize;
+    op::PoseModel poseModel;
+    std::tie(outputSize, netInputSize, netOutputSize, poseModel) = gflagsToOpParameters();
+    // Step 3 - Initialize all required classes
+    this->cvMatToOpInput = new op::CvMatToOpInput{netInputSize, FLAGS_num_scales, (float)FLAGS_scale_gap};
+    this->cvMatToOpOutput = new op::CvMatToOpOutput{outputSize};
+    this->poseExtractorCaffe = new op::PoseExtractorCaffe{netInputSize, netOutputSize, outputSize, FLAGS_num_scales, (float)FLAGS_scale_gap, poseModel,
+                                              FLAGS_model_folder, FLAGS_num_gpu_start};
+    this->poseRenderer = new op::PoseRenderer{netOutputSize, outputSize, poseModel, nullptr, (float)FLAGS_alpha_pose};
+    this->opOutputToCvMat = new op::OpOutputToCvMat{outputSize};
+    const cv::Size windowedSize = outputSize;
+    this->frameDisplayer = new op::FrameDisplayer{windowedSize, "OpenPose Tutorial - Example 1"};
+    // Step 4 - Initialize resources on desired thread (in this case single thread, i.e. we init resources here)
+    this->poseExtractorCaffe->initializationOnThread();
+	this->poseRenderer->initializationOnThread();
 }
 
 SkeletonTracking::~SkeletonTracking()
@@ -32,6 +57,14 @@ SkeletonTracking::~SkeletonTracking()
 	if (this->debug) {
 		cv::destroyWindow("view");
 	}
+	delete cvMatToOpInput;
+	delete cvMatToOpOutput;
+	delete poseExtractorCaffe;
+	delete poseRenderer;
+	delete opOutputToCvMat;
+	delete frameDisplayer;
+	delete poseExtractorCaffe;
+	delete poseRenderer;
 }
 
 op::PoseModel SkeletonTracking::gflagToPoseModel(const std::string& poseModeString)
@@ -80,9 +113,24 @@ void SkeletonTracking::imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
 	try
 	{
+		cv::Mat inputImage = cv_bridge::toCvShare(msg, "bgra8")->image;
+		// Step 2 - Format input image to OpenPose input and output formats
+	    const auto netInputArray = cvMatToOpInput->format(inputImage);
+	    double scaleInputToOutput;
+	    op::Array<float> outputArray;
+	    std::tie(scaleInputToOutput, outputArray) = cvMatToOpOutput->format(inputImage);
+	    // Step 3 - Estimate poseKeyPoints
+	    poseExtractorCaffe->forwardPass(netInputArray, inputImage.size());
+	    const auto poseKeyPoints = poseExtractorCaffe->getPoseKeyPoints();
+	    // Step 4 - Render poseKeyPoints
+	    poseRenderer->renderPose(outputArray, poseKeyPoints);
+	    // Step 5 - OpenPose output format to cv::Mat
+		auto outputImage = opOutputToCvMat->formatToCvMat(outputArray);
+
 		if (this->debug) {
-			cv::imshow("view", cv_bridge::toCvShare(msg, "bgra8")->image);
+			cv::imshow("view", inputImage);
 			cv::waitKey(30);	
+			frameDisplayer->displayFrame(outputImage, 0);
 		}
 	}
 	catch (cv_bridge::Exception& e)

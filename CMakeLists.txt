@@ -26,6 +26,7 @@ find_package(openpose REQUIRED COMPONENTS
 )
 
 find_package(GFlags REQUIRED)
+find_package(Glog REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -116,7 +117,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES deep_skeleton_tracking
 	CATKIN_DEPENDS image_transport roscpp rospy
-	DEPENDS openpose cuda caffe GFLAGS
+	DEPENDS openpose cuda caffe GFLAGS GLOG
 )
 
 ###########
@@ -131,6 +132,7 @@ include_directories(
   /usr/local/cuda/include
   ${caffe_INCLUDE_DIR}
   ${GFLAGS_INCLUDE_DIR}
+  ${GLOG_INCLUDE_DIR}
 )
 
 ## Declare a C++ library
@@ -155,6 +157,7 @@ target_link_libraries(skeleton_tracking
   ${cuda_LIBRARY}
   ${caffe_LIBRARY}
   ${GFLAGS_LIBRARY}
+  ${GLOG_LIBRARY}
 )
 
 ## Rename C++ executable without prefix

@@ -7,7 +7,7 @@ DEFINE_int32(logging_level,             3,              "The logging level. Inte
                                                         " Current OpenPose library messages are in the range 0-4: 1 for low priority messages and 4 for important ones.");
 // OpenPose
 DEFINE_string(model_pose,               "COCO",         "Model to be used (e.g. COCO, MPI, MPI_4_layers).");
-DEFINE_string(model_folder,             "/home/buschbapti/catkin_ws/src/deep_skeleton_tracking/models/",      "Folder where the pose models (COCO and MPI) are located.");
+DEFINE_string(model_folder,             "~/catkin_ws/src/deep_skeleton_tracking/models/",      "Folder where the pose models (COCO and MPI) are located.");
 DEFINE_string(net_resolution,           "656x368",      "Multiples of 16.");
 DEFINE_string(resolution,               "1280x720",     "The image resolution (display). Use \"-1x-1\" to force the program to use the default images resolution.");
 DEFINE_int32(num_gpu_start,             0,              "GPU device start number.");

@@ -12,8 +12,12 @@
 #include <opencv2/core/core.hpp> // cv::Mat & cv::Size
 
 // OpenPose dependencies
-// Option a) Importing all modules
+#include <openpose/core/headers.hpp>
 #include <openpose/headers.hpp>
+#include <openpose/filestream/headers.hpp>
+#include <openpose/gui/headers.hpp>
+#include <openpose/pose/headers.hpp>
+#include <openpose/utilities/headers.hpp>
 
 // ROS dependencies
 #include <ros/ros.h>
@@ -29,7 +33,7 @@ class SkeletonTracking {
 private:
 	bool debug;
 	op::PoseModel gflagToPoseModel(const std::string& poseModeString);
-	std::tuple<cv::Size, cv::Size, cv::Size, op::PoseModel> gflagsToOpParameters();
+	std::tuple<op::Point<int>, op::Point<int>, op::Point<int>, op::PoseModel> gflagsToOpParameters();
 
 	op::CvMatToOpInput* cvMatToOpInput;
 	op::CvMatToOpOutput* cvMatToOpOutput;

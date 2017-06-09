@@ -33,9 +33,9 @@ SkeletonTracking::SkeletonTracking(bool debug)
     op::check(0 <= FLAGS_logging_level && FLAGS_logging_level <= 255, "Wrong logging_level value.", __LINE__, __FUNCTION__, __FILE__);
     op::ConfigureLog::setPriorityThreshold((op::Priority)FLAGS_logging_level);
     // Step 2 - Read Google flags (user defined configuration)
-    cv::Size outputSize;
-    cv::Size netInputSize;
-    cv::Size netOutputSize;
+    op::Point<int> outputSize;
+    op::Point<int> netInputSize;
+    op::Point<int> netOutputSize;
     op::PoseModel poseModel;
     std::tie(outputSize, netInputSize, netOutputSize, poseModel) = gflagsToOpParameters();
     // Step 3 - Initialize all required classes
@@ -45,7 +45,7 @@ SkeletonTracking::SkeletonTracking(bool debug)
                                               FLAGS_model_folder, FLAGS_num_gpu_start};
     this->poseRenderer = new op::PoseRenderer{netOutputSize, outputSize, poseModel, nullptr, (float)FLAGS_alpha_pose};
     this->opOutputToCvMat = new op::OpOutputToCvMat{outputSize};
-    const cv::Size windowedSize = outputSize;
+    const op::Point<int> windowedSize = outputSize;
     this->frameDisplayer = new op::FrameDisplayer{windowedSize, "OpenPose Tutorial - Example 1"};
     // Step 4 - Initialize resources on desired thread (in this case single thread, i.e. we init resources here)
     this->poseExtractorCaffe->initializationOnThread();
@@ -84,16 +84,16 @@ op::PoseModel SkeletonTracking::gflagToPoseModel(const std::string& poseModeStri
 }
 
 // Google flags into program variables
-std::tuple<cv::Size, cv::Size, cv::Size, op::PoseModel> SkeletonTracking::gflagsToOpParameters()
+std::tuple<op::Point<int>, op::Point<int>, op::Point<int>, op::PoseModel> SkeletonTracking::gflagsToOpParameters()
 {
     op::log("", op::Priority::Low, __LINE__, __FUNCTION__, __FILE__);
     // outputSize
-    cv::Size outputSize;
-    auto nRead = sscanf(FLAGS_resolution.c_str(), "%dx%d", &outputSize.width, &outputSize.height);
+    op::Point<int> outputSize;
+    auto nRead = sscanf(FLAGS_resolution.c_str(), "%dx%d", &outputSize.x, &outputSize.y);
     op::checkE(nRead, 2, "Error, resolution format (" +  FLAGS_resolution + ") invalid, should be e.g., 960x540 ", __LINE__, __FUNCTION__, __FILE__);
     // netInputSize
-    cv::Size netInputSize;
-    nRead = sscanf(FLAGS_net_resolution.c_str(), "%dx%d", &netInputSize.width, &netInputSize.height);
+    op::Point<int> netInputSize;
+    nRead = sscanf(FLAGS_net_resolution.c_str(), "%dx%d", &netInputSize.x, &netInputSize.y);
     op::checkE(nRead, 2, "Error, net resolution format (" +  FLAGS_net_resolution + ") invalid, should be e.g., 656x368 (multiples of 16)", __LINE__, __FUNCTION__, __FILE__);
     // netOutputSize
     const auto netOutputSize = netInputSize;
@@ -120,10 +120,10 @@ void SkeletonTracking::imageCallback(const sensor_msgs::ImageConstPtr& msg)
 	    op::Array<float> outputArray;
 	    std::tie(scaleInputToOutput, outputArray) = cvMatToOpOutput->format(inputImage);
 	    // Step 3 - Estimate poseKeyPoints
-	    poseExtractorCaffe->forwardPass(netInputArray, inputImage.size());
-	    const auto poseKeyPoints = poseExtractorCaffe->getPoseKeyPoints();
+	    poseExtractorCaffe->forwardPass(netInputArray, {inputImage.cols, inputImage.rows});
+	    const auto poseKeypoints = poseExtractorCaffe->getPoseKeypoints();
 	    // Step 4 - Render poseKeyPoints
-	    poseRenderer->renderPose(outputArray, poseKeyPoints);
+	    poseRenderer->renderPose(outputArray, poseKeypoints);
 	    // Step 5 - OpenPose output format to cv::Mat
 		auto outputImage = opOutputToCvMat->formatToCvMat(outputArray);
 

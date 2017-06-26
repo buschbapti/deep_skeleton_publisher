@@ -7,7 +7,7 @@ DEFINE_int32(logging_level,             3,              "The logging level. Inte
                                                         " Current OpenPose library messages are in the range 0-4: 1 for low priority messages and 4 for important ones.");
 // OpenPose
 DEFINE_string(model_pose,               "COCO",         "Model to be used (e.g. COCO, MPI, MPI_4_layers).");
-DEFINE_string(model_folder,             "/home/buschbapti/catkin_ws/src/deep_skeleton_tracking/models/",      "Folder where the pose models (COCO and MPI) are located.");
+DEFINE_string(model_folder,             "/home/buschbapti/Documents/openpose/models",      "Folder where the pose models (COCO and MPI) are located.");
 DEFINE_string(net_resolution,           "656x368",      "Multiples of 16.");
 DEFINE_string(resolution,               "1280x720",     "The image resolution (display). Use \"-1x-1\" to force the program to use the default images resolution.");
 DEFINE_int32(num_gpu_start,             0,              "GPU device start number.");
@@ -15,7 +15,10 @@ DEFINE_double(scale_gap,                0.3,            "Scale gap between scale
                                                         "you actually want to multiply the `net_resolution` by your desired initial scale.");
 DEFINE_int32(num_scales,                1,              "Number of scales to average.");
 // OpenPose Rendering
-DEFINE_double(alpha_pose,               0.6,            "Blending factor (range 0-1) for the body part rendering. 1 will show it completely, 0 will hide it.");
+DEFINE_bool(disable_blending,           false,          "If blending is enabled, it will merge the results with the original frame. If disabled, it"
+                                                        " will only display the results.");
+DEFINE_double(alpha_pose,               0.6,            "Blending factor (range 0-1) for the body part rendering. 1 will show it completely, 0 will"
+" hide it. Only valid for GPU rendering.");
 
 
 SkeletonTracking::SkeletonTracking(bool debug)
@@ -41,9 +44,9 @@ SkeletonTracking::SkeletonTracking(bool debug)
     // Step 3 - Initialize all required classes
     this->cvMatToOpInput = new op::CvMatToOpInput{netInputSize, FLAGS_num_scales, (float)FLAGS_scale_gap};
     this->cvMatToOpOutput = new op::CvMatToOpOutput{outputSize};
-    this->poseExtractorCaffe = new op::PoseExtractorCaffe{netInputSize, netOutputSize, outputSize, FLAGS_num_scales, (float)FLAGS_scale_gap, poseModel,
-                                              FLAGS_model_folder, FLAGS_num_gpu_start};
-    this->poseRenderer = new op::PoseRenderer{netOutputSize, outputSize, poseModel, nullptr, (float)FLAGS_alpha_pose};
+    this->poseExtractorCaffe = new op::PoseExtractorCaffe{netInputSize, netOutputSize, outputSize, FLAGS_num_scales, poseModel, 
+        FLAGS_model_folder, FLAGS_num_gpu_start};
+    this->poseRenderer = new op::PoseRenderer{netOutputSize, outputSize, poseModel, nullptr, !FLAGS_disable_blending, (float)FLAGS_alpha_pose};
     this->opOutputToCvMat = new op::OpOutputToCvMat{outputSize};
     const op::Point<int> windowedSize = outputSize;
     this->frameDisplayer = new op::FrameDisplayer{windowedSize, "OpenPose Tutorial - Example 1"};
@@ -115,17 +118,19 @@ void SkeletonTracking::imageCallback(const sensor_msgs::ImageConstPtr& msg)
 	{
 		cv::Mat inputImage = cv_bridge::toCvShare(msg, "bgra8")->image;
 		// Step 2 - Format input image to OpenPose input and output formats
-	    const auto netInputArray = cvMatToOpInput->format(inputImage);
-	    double scaleInputToOutput;
-	    op::Array<float> outputArray;
-	    std::tie(scaleInputToOutput, outputArray) = cvMatToOpOutput->format(inputImage);
+        op::Array<float> netInputArray;
+        std::vector<float> scaleRatios;
+        std::tie(netInputArray, scaleRatios) = cvMatToOpInput->format(inputImage);
+        double scaleInputToOutput;
+        op::Array<float> outputArray;
+        std::tie(scaleInputToOutput, outputArray) = cvMatToOpOutput->format(inputImage);
 	    // Step 3 - Estimate poseKeyPoints
-	    poseExtractorCaffe->forwardPass(netInputArray, {inputImage.cols, inputImage.rows});
-	    const auto poseKeypoints = poseExtractorCaffe->getPoseKeypoints();
-	    // Step 4 - Render poseKeyPoints
-	    poseRenderer->renderPose(outputArray, poseKeypoints);
-	    // Step 5 - OpenPose output format to cv::Mat
-		auto outputImage = opOutputToCvMat->formatToCvMat(outputArray);
+	    poseExtractorCaffe->forwardPass(netInputArray, {inputImage.cols, inputImage.rows}, scaleRatios);
+        const auto poseKeypoints = poseExtractorCaffe->getPoseKeypoints();
+        // Step 4 - Render poseKeypoints
+        poseRenderer->renderPose(outputArray, poseKeypoints);
+        // Step 5 - OpenPose output format to cv::Mat
+        auto outputImage = opOutputToCvMat->formatToCvMat(outputArray);
 
 		if (this->debug) {
 			cv::imshow("view", inputImage);
